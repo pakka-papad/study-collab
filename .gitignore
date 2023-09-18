@@ -1,4 +1,6 @@
-*.txt
+/client/*.txt
+/server/*.txt
 .vscode
 /server/server
 /client/client
+/build

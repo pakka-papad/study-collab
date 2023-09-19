@@ -1,3 +1,4 @@
+#include <iostream>
 #include <pthread.h>
 #include <unistd.h>
 #include <sys/socket.h>
@@ -35,11 +36,11 @@ int main(int argc, char * argv[]){
 
     Connection::getConnection()->init(clientSocket);
 
-    
     pthread_t uiThreadId;
     pthread_create(&uiThreadId, NULL, runUiThread, NULL);
 
     pthread_join(uiThreadId, NULL);
+    Connection::getConnection()->terminate();
 
     return EXIT_SUCCESS;
 }

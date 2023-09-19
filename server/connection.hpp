@@ -1,3 +1,6 @@
+#ifndef CONNECTION_HPP
+#define CONNECTION_HPP
+
 #include <sys/socket.h>
 
 class Connection {
@@ -5,3 +8,5 @@ class Connection {
     sockaddr_in clientAddress;
     int clientSocket;
 };
+
+#endif 

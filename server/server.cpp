@@ -4,16 +4,71 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <mutex>
+#include <nlohmann/json.hpp>
 #include "connection.hpp"
 #include "message.hpp"
+#include "database.cpp"
+#include "../constants.hpp"
 
 pthread_mutex_t mtx;
+
+void sendMessage(Connection* conn, const Message &msg, std::string &email){
+    std::string str;
+    str.push_back(msg.code);
+    int len = msg.message.size();
+    str.push_back(((len >> 24) & 0xFF));
+    str.push_back(((len >> 16) & 0xFF));
+    str.push_back(((len >> 8) & 0xFF));
+    str.push_back((len & 0xFF));
+    str.append(msg.message);
+
+    pthread_mutex_lock(&mtx);
+    std::cerr << "Sending message on socket " << conn->clientSocket << " msg:" << msg.message << std::endl;
+    pthread_mutex_unlock(&mtx);
+
+    if(send(conn->clientSocket, &str[0], str.size(), 0) == -1){
+        pthread_mutex_lock(&mtx);
+        std::cerr << "Closed socket " << conn->clientSocket << ". Could not send data." << std::endl;
+        pthread_mutex_unlock(&mtx);
+        Database::getDatabse()->logoutUser(email);
+        close(conn->clientSocket);
+    } else {
+        pthread_mutex_lock(&mtx);
+        std::cerr << "Message sent on socket " << conn->clientSocket << std::endl;
+        pthread_mutex_unlock(&mtx);
+    }
+}
+
+void handleMessage(Connection* conn, const Message &msg, std::string &email){
+    switch(msg.code){
+        case LOGIN_REQUEST: {
+            nlohmann::json data = nlohmann::json::parse(msg.message);
+            std::string reqEmail = data["email"];
+            std::string password = data["password"];
+            bool success = Database::getDatabse()->loginOrRegisterUser(conn, reqEmail, password);
+            if(success) {
+                email = reqEmail;
+                pthread_mutex_lock(&mtx);
+                std::cerr << "Socket " << conn->clientSocket << " now set to email " << email << std::endl;
+                pthread_mutex_unlock(&mtx);
+            }
+            Message replyMsg((success ? LOGIN_SUCCESS : LOGIN_FAILED),"{}");
+            sendMessage(conn, replyMsg, email);
+            break;
+        }
+
+        default:
+            break;
+    }
+}
 
 void* handleConnection(void* arg){
     Connection* conn = static_cast<Connection*>(arg);
     pthread_mutex_lock(&mtx);
     std::cerr << "Client connected. Socket-id: " << conn->clientSocket << std::endl;
     pthread_mutex_unlock(&mtx);
+
+    std::string email;
 
     const int BUF_SIZE = 2048;
 
@@ -32,6 +87,7 @@ void* handleConnection(void* arg){
             pthread_mutex_lock(&mtx);
             std::cerr << "Closed socket " << conn->clientSocket << std::endl;
             pthread_mutex_unlock(&mtx);
+            Database::getDatabse()->logoutUser(email);
             pthread_exit(NULL);
             return NULL;
         }
@@ -66,6 +122,7 @@ void* handleConnection(void* arg){
                     pthread_mutex_lock(&mtx);
                     std::cerr << "Message on socket: " << conn->clientSocket << " len:" << msgLen << " msg:" << msg << std::endl;
                     pthread_mutex_unlock(&mtx);
+                    handleMessage(conn, newMsg, email);
 
                     nextByte = 0;
                     code = 0;

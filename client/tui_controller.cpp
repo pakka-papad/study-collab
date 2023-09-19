@@ -17,7 +17,7 @@ class TuiController {
     
     void run(){
         std::stack<Screen*> navStack;
-        navStack.push(new Auth());
+        navStack.push(new Login());
 
         while(!navStack.empty()){
             Screen* current = navStack.top();

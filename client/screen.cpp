@@ -44,6 +44,54 @@ class CreateGroup: public Screen {
     }   
 };
 
+class JoinGroup: public Screen {
+    public:
+    Screen* display(){
+        auto conn = Connection::getConnection();
+        std::cout << "Fetching groups list..." << std::endl;
+
+        Message req(REQUEST_NON_PARTICIPATING_GROUPS,"{}");
+        conn->sendMessage(&req);
+        auto reply = conn->msgQ.pop();
+        nlohmann::json data = nlohmann::json::parse(reply->message);
+        std::vector<std::string> groups;
+        std::vector<std::string> groupIds;
+        std::string groupName, createdBy, groupId;
+        for(auto &group: data){
+            groupName = group["group_name"];
+            createdBy = group["created_by"];
+            groupId = group["group_id"];
+            groups.push_back(groupName + " (created by: " + createdBy + ")");
+            groupIds.push_back(groupId);
+        }
+
+        bool again = true;
+        while(again){
+            int grpPos = showMenu(groups);
+            clear();
+            if(grpPos == -1) return NULL;
+            nlohmann::json joinData;
+            joinData["group_id"] = groupIds[grpPos];
+            Message joinReq(JOIN_GROUP_REQUEST, joinData.dump());
+            conn->sendMessage(&joinReq);
+            auto joinRep = conn->msgQ.pop();
+            if(joinRep->code == JOIN_GROUP_SUCCESS){
+                std::cout << "Group joined successfully" << std::endl;
+                sleep(3);
+                again = false;
+            } else {
+                char tryAgain;
+                std::cout << "Try again? [y|n]: ";
+                std::cin >> tryAgain;
+                if(tryAgain == 'n'){
+                    again = false;
+                }
+            }
+        }
+        return NULL;
+    }
+};
+
 class TaskChoice: public Screen {
     private:
     std::vector<std::string> options = {
@@ -59,6 +107,9 @@ class TaskChoice: public Screen {
         switch(selectedOption){
             case 0:
                 return new CreateGroup();
+                break;
+            case 1:
+                return new JoinGroup();
                 break;
             default:    
                 return NULL;

@@ -23,7 +23,7 @@ void sendMessage(Connection* conn, const Message &msg, std::string &email){
     str.append(msg.message);
 
     pthread_mutex_lock(&mtx);
-    std::cerr << "Sending message on socket " << conn->clientSocket << " msg:" << msg.message << std::endl;
+    std::cerr << "Sending message on socket " << conn->clientSocket << " code:" << int(msg.code) << " msg:" << msg.message << std::endl;
     pthread_mutex_unlock(&mtx);
 
     if(send(conn->clientSocket, &str[0], str.size(), 0) == -1){
@@ -32,10 +32,6 @@ void sendMessage(Connection* conn, const Message &msg, std::string &email){
         pthread_mutex_unlock(&mtx);
         Database::getDatabse()->logoutUser(email);
         close(conn->clientSocket);
-    } else {
-        pthread_mutex_lock(&mtx);
-        std::cerr << "Message sent on socket " << conn->clientSocket << std::endl;
-        pthread_mutex_unlock(&mtx);
     }
 }
 
@@ -64,7 +60,41 @@ void handleMessage(Connection* conn, const Message &msg, std::string &email){
             sendMessage(conn, replyMsg, email);
             break;
         }
-
+        case REQUEST_ALL_GROUPS: {
+            auto groups = Database::getDatabse()->fetchAllGroups(email);
+            nlohmann::json res;
+            for(auto &group: groups){
+                res.push_back(group.toJson());
+            }
+            Message reply(REPLY_ALL_GROUPS, res.dump());
+            sendMessage(conn, reply, email);
+        }
+        case REQUEST_PARTICIPATING_GROUPS: {
+            auto groups = Database::getDatabse()->fetchParticipatingGroups(email);
+            nlohmann::json res;
+            for(auto &group: groups){
+                res.push_back(group.toJson());
+            }
+            Message reply(REPLY_PARTICIPATING_GROUPS, res.dump());
+            sendMessage(conn, reply, email);
+        }
+        case REQUEST_NON_PARTICIPATING_GROUPS: {
+            auto groups = Database::getDatabse()->fetchNonParticipatingGroups(email);
+            nlohmann::json res;
+            for(auto &group: groups){
+                res.push_back(group.toJson());
+            }
+            Message reply(REPLY_NON_PARTICIPATING_GROUPS, res.dump());
+            sendMessage(conn, reply, email);
+            break;
+        }
+        case JOIN_GROUP_REQUEST: {
+            nlohmann::json data = nlohmann::json::parse(msg.message);
+            std::string groupId = data["group_id"];
+            bool success = Database::getDatabse()->addToGroup(email, groupId);
+            Message reply((success ? JOIN_GROUP_SUCCESS : JOIN_GROUP_FAILED), "{}");
+            sendMessage(conn, reply, email);
+        }
         default:
             break;
     }
@@ -106,19 +136,19 @@ void* handleConnection(void* arg){
                 nextByte++;
             } else if(nextByte == 1){
                 msgLen = 0;
-                msgLen += buffer[i];
+                msgLen += (uint8_t)buffer[i];
                 nextByte++;
             } else if(nextByte == 2){
                 msgLen = (msgLen << 8);
-                msgLen += buffer[i];
+                msgLen += (uint8_t)buffer[i];
                 nextByte++;
             } else if(nextByte == 3){
                 msgLen = (msgLen << 8);
-                msgLen += buffer[i];
+                msgLen += (uint8_t)buffer[i];
                 nextByte++;
             } else if(nextByte == 4){
                 msgLen = (msgLen << 8);
-                msgLen += buffer[i];
+                msgLen += (uint8_t)buffer[i];
                 msg.clear();
                 nextByte++;
             } else {
@@ -128,7 +158,7 @@ void* handleConnection(void* arg){
                     // handle message
                     Message newMsg(code,msg);
                     pthread_mutex_lock(&mtx);
-                    std::cerr << "Message on socket: " << conn->clientSocket << " len:" << msgLen << " msg:" << msg << std::endl;
+                    std::cerr << "Message on socket: " << conn->clientSocket << " len:" << msgLen << " code:" << int(code) << " msg:" << msg << std::endl;
                     pthread_mutex_unlock(&mtx);
                     handleMessage(conn, newMsg, email);
 

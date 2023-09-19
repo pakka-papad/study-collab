@@ -111,5 +111,16 @@ class Database {
         return res;
     }
 
-
+    bool addToGroup(const std::string email, const std::string groupId){
+        mtx.lock();
+        bool accountExists = (accounts.find(email) != accounts.end());
+        bool groupExists = (groups.find(groupId) != groups.end());
+        if(!accountExists || !groupExists){
+            mtx.unlock();
+            return false;
+        }
+        groups[groupId]->members.insert(email);
+        mtx.unlock();
+        return true;
+    }
 };

@@ -17,6 +17,7 @@ int Connection::sendMessage(Message* msg){
     str.push_back((len & 0xFF));
     str.append(msg->message);
 
+    std::cerr << "Sending message code:" << int(msg->code) << " msg:" << msg->message << std::endl;
     int sendRes = send(this->socket, &str[0], str.size(), 0);
 
     if(sendRes == -1){
@@ -49,35 +50,44 @@ void Connection::listenIncomingMessages(){
             pthread_exit(NULL);
         }
         if(bytesRead == 0) continue;
+        std::cerr << "bytesRead: " << bytesRead << std::endl;
         for(int i = 0; i < bytesRead; i++){
+            if(i == 0) std::cerr << "buffer[0]=" << int(buffer[0]) << " ";
+            else if(i >= 5) std::cerr << "buffer[" << i << "]=" << buffer[i] << " ";
+            else std::cerr << "buffer[" << i << "]=" << int(buffer[i]) << " ";
             if(nextByte == 0){
                 code = buffer[i];
                 nextByte++;
             } else if(nextByte == 1){
                 msgLen = 0;
-                msgLen += buffer[i];
+                msgLen += (uint8_t)buffer[i];
                 nextByte++;
             } else if(nextByte == 2){
                 msgLen = (msgLen << 8);
-                msgLen += buffer[i];
+                msgLen += (uint8_t)buffer[i];
                 nextByte++;
             } else if(nextByte == 3){
                 msgLen = (msgLen << 8);
-                msgLen += buffer[i];
+                msgLen += (uint8_t)buffer[i];
                 nextByte++;
             } else if(nextByte == 4){
                 msgLen = (msgLen << 8);
-                msgLen += buffer[i];
+                msgLen += (uint8_t)buffer[i];
                 msg.clear();
                 nextByte++;
             } else {
                 msg.push_back(buffer[i]);
                 nextByte++;
-                if(msg.size() == msgLen){
+                if(i == bytesRead-1){
+                    std::cerr << "msg.size()=" << msg.size() << "  msgLen=" << msgLen << std::endl;
+                }
+                if(msg.size() >= msgLen){
                     // handle message
                     Message* newMsg = new Message(code,msg);
+                    std::cerr << std::endl;
+                    std::cerr << "Waiting to push: " << msg << std::endl;
                     msgQ.push(newMsg);
-                    std::cerr << "len:" << msgLen << " code:" << code << " msg:" << msg << std::endl;
+                    std::cerr << "Received message len:" << msgLen << " code:" << int(code) << " msg:" << msg << std::endl;
 
                     nextByte = 0;
                     code = 0;

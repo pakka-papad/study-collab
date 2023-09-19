@@ -2,6 +2,7 @@
 #include <ncurses.h>
 #include <vector>
 #include <string>
+#include <unistd.h>
 #include "menu.cpp"
 #include "connection.hpp"
 #include "../constants.hpp"
@@ -12,10 +13,42 @@ class Screen {
     virtual Screen* display() = 0;
 };
 
+class CreateGroup: public Screen {
+    public:
+    Screen* display(){
+        bool again = true;
+        auto conn = Connection::getConnection();
+        std::string gropupName;
+        while(again){
+            std::cout << "Enter group name: ";
+            std::cin >> gropupName;
+            nlohmann::json data;
+            data["group_name"] = gropupName;
+            Message reqMsg(CREATE_GROUP_REQUEST,data.dump());
+            conn->sendMessage(&reqMsg);
+            auto reply = conn->msgQ.pop();
+            if(reply->code == CREATE_GROUP_SUCCESS){
+                std::cout << "Group created successfully" << std::endl;
+                again = false;
+                sleep(3);
+            } else {
+                char tryAgain;
+                std::cout << "Try again? [y|n]: ";
+                std::cin >> tryAgain;
+                if(tryAgain == 'n'){
+                    again = false;
+                }
+            }
+        }
+        return NULL;
+    }   
+};
+
 class TaskChoice: public Screen {
     private:
     std::vector<std::string> options = {
         "Create group",
+        "Join group",
         "Enter chat room",
         "Share file",
         "Download file"
@@ -23,6 +56,14 @@ class TaskChoice: public Screen {
     public:
     Screen* display() {
         int selectedOption = showMenu(options);
+        switch(selectedOption){
+            case 0:
+                return new CreateGroup();
+                break;
+            default:    
+                return NULL;
+                break;
+        }
         return NULL;
     }
 };

@@ -7,6 +7,12 @@
 #include "connection.hpp"
 #include "../constants.hpp"
 #include <nlohmann/json.hpp>
+#include <mutex>
+#include <functional>
+#include <atomic>
+#include "chat.hpp"
+#include "chat_db.cpp"
+#include "safe_queue.cpp"
 
 class Screen {
     public:
@@ -92,6 +98,67 @@ class JoinGroup: public Screen {
     }
 };
 
+class ChatRoom: public Screen {
+    private:
+    std::mutex mtx;
+    public:
+    Screen* display(){
+        auto conn = Connection::getConnection();
+        std::cout << "Fetching groups list..." << std::endl;
+
+        Message req(REQUEST_PARTICIPATING_GROUPS,"{}");
+        conn->sendMessage(&req);
+        auto reply = conn->msgQ.pop();
+        nlohmann::json data = nlohmann::json::parse(reply->message);
+        std::vector<std::string> groups;
+        std::vector<std::string> groupIds;
+        std::string groupName, createdBy, groupId;
+        for(auto &group: data){
+            groupName = group["group_name"];
+            createdBy = group["created_by"];
+            groupId = group["group_id"];
+            groups.push_back(groupName + " (created by: " + createdBy + ")");
+            groupIds.push_back(groupId);
+        }
+
+        int grpPos = showMenu(groups);
+        if(grpPos == -1) return NULL;
+        system("clear");
+        auto chats = ChatDB::getChatDB()->fetchChats(groupIds[grpPos]);
+        std::cout << "Type \"quit\" (without quotes) to quit the chat room" << std::endl;
+        for(auto &chat: chats){
+            std::cout << "(" << chat.createdBy << ") " << chat.message << std::endl;
+        }
+        std::function<void(Chat,std::string)> listener = [&](Chat newChat, std::string chatGroupId){
+            if(chatGroupId != groupIds[grpPos]) return;
+            mtx.lock();
+            std::cout << "(" << newChat.createdBy << ") "  << newChat.message << std::endl;
+            mtx.unlock();
+        };
+        ChatDB::getChatDB()->addListener(&listener);
+
+        while(true){
+            std::string input;
+            getline(std::cin, input);
+            if(input == "quit"){
+                break;
+            }
+            if(input == "") continue;
+            nlohmann::json chatData;
+            chatData["group_id"] = groupIds[grpPos];
+            chatData["message"] = input;
+            Message chatMsg(SEND_MESSAGE, chatData.dump());
+            Connection::getConnection()->sendMessage(&chatMsg);
+        }
+
+        
+        mtx.lock();
+        ChatDB::getChatDB()->removeListener();
+        mtx.unlock();
+        return NULL;
+    }
+};
+
 class TaskChoice: public Screen {
     private:
     std::vector<std::string> options = {
@@ -110,6 +177,9 @@ class TaskChoice: public Screen {
                 break;
             case 1:
                 return new JoinGroup();
+                break;
+            case 2:
+                return new ChatRoom();
                 break;
             default:    
                 return NULL;

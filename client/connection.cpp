@@ -3,7 +3,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <netinet/in.h>
+#include <nlohmann/json.hpp>
 #include "connection.hpp"
+#include "../constants.hpp"
+#include "chat_db.cpp"
 
 int Connection::sendMessage(Message* msg){
     if(!isInitialized) return -2;
@@ -52,9 +55,6 @@ void Connection::listenIncomingMessages(){
         if(bytesRead == 0) continue;
         std::cerr << "bytesRead: " << bytesRead << std::endl;
         for(int i = 0; i < bytesRead; i++){
-            if(i == 0) std::cerr << "buffer[0]=" << int(buffer[0]) << " ";
-            else if(i >= 5) std::cerr << "buffer[" << i << "]=" << buffer[i] << " ";
-            else std::cerr << "buffer[" << i << "]=" << int(buffer[i]) << " ";
             if(nextByte == 0){
                 code = buffer[i];
                 nextByte++;
@@ -78,15 +78,20 @@ void Connection::listenIncomingMessages(){
             } else {
                 msg.push_back(buffer[i]);
                 nextByte++;
-                if(i == bytesRead-1){
-                    std::cerr << "msg.size()=" << msg.size() << "  msgLen=" << msgLen << std::endl;
-                }
-                if(msg.size() >= msgLen){
+                if(msg.size() == msgLen){
                     // handle message
-                    Message* newMsg = new Message(code,msg);
-                    std::cerr << std::endl;
-                    std::cerr << "Waiting to push: " << msg << std::endl;
-                    msgQ.push(newMsg);
+                    if(code == NEW_MESSAGE){
+                        nlohmann::json data = nlohmann::json::parse(msg);
+                        Chat* chat = new Chat();
+                        chat->message = data["chat"]["message"];
+                        chat->createdBy = data["chat"]["created_by"];
+                        chat->createdAt = data["chat"]["created_at"];
+                        std::string groupId = data["group_id"];
+                        ChatDB::getChatDB()->saveChat(chat, groupId);
+                    } else {
+                        Message* newMsg = new Message(code,msg);
+                        msgQ.push(newMsg);
+                    }
                     std::cerr << "Received message len:" << msgLen << " code:" << int(code) << " msg:" << msg << std::endl;
 
                     nextByte = 0;

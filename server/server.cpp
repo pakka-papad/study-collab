@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <mutex>
 #include <nlohmann/json.hpp>
+#include <chrono>
 #include "connection.hpp"
 #include "message.hpp"
 #include "database.cpp"
@@ -26,13 +27,16 @@ void sendMessage(Connection* conn, const Message &msg, std::string &email){
     std::cerr << "Sending message on socket " << conn->clientSocket << " code:" << int(msg.code) << " msg:" << msg.message << std::endl;
     pthread_mutex_unlock(&mtx);
 
-    if(send(conn->clientSocket, &str[0], str.size(), 0) == -1){
+    conn->sendMutex.lock();
+    int sendRes = send(conn->clientSocket, &str[0], str.size(), 0);
+    if(sendRes == -1){
         pthread_mutex_lock(&mtx);
         std::cerr << "Closed socket " << conn->clientSocket << ". Could not send data." << std::endl;
         pthread_mutex_unlock(&mtx);
         Database::getDatabse()->logoutUser(email);
         close(conn->clientSocket);
     }
+    conn->sendMutex.unlock();
 }
 
 void handleMessage(Connection* conn, const Message &msg, std::string &email){
@@ -68,6 +72,7 @@ void handleMessage(Connection* conn, const Message &msg, std::string &email){
             }
             Message reply(REPLY_ALL_GROUPS, res.dump());
             sendMessage(conn, reply, email);
+            break;
         }
         case REQUEST_PARTICIPATING_GROUPS: {
             auto groups = Database::getDatabse()->fetchParticipatingGroups(email);
@@ -77,6 +82,7 @@ void handleMessage(Connection* conn, const Message &msg, std::string &email){
             }
             Message reply(REPLY_PARTICIPATING_GROUPS, res.dump());
             sendMessage(conn, reply, email);
+            break;
         }
         case REQUEST_NON_PARTICIPATING_GROUPS: {
             auto groups = Database::getDatabse()->fetchNonParticipatingGroups(email);
@@ -94,6 +100,25 @@ void handleMessage(Connection* conn, const Message &msg, std::string &email){
             bool success = Database::getDatabse()->addToGroup(email, groupId);
             Message reply((success ? JOIN_GROUP_SUCCESS : JOIN_GROUP_FAILED), "{}");
             sendMessage(conn, reply, email);
+            break;
+        }
+        case SEND_MESSAGE: {
+            nlohmann::json data = nlohmann::json::parse(msg.message);
+            std::string message = data["message"];
+            std::string groupId = data["group_id"];
+            if(groupId.empty()) break;
+            auto acConnsAndEmails = Database::getDatabse()->getGroupMemberConnectionsAndEmails(groupId);
+            nlohmann::json replyData;
+            replyData["group_id"] = groupId;
+            replyData["chat"]["message"] = message;
+            replyData["chat"]["created_at"] = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+            replyData["chat"]["created_by"] = email;
+            std::string replyStr = replyData.dump();
+            for(auto cne: acConnsAndEmails){
+                Message newChat(NEW_MESSAGE, replyStr);
+                sendMessage(cne.first, newChat, cne.second);
+            }
+            break;
         }
         default:
             break;

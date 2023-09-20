@@ -19,3 +19,6 @@ const char JOIN_GROUP_REQUEST = 13;
 const char JOIN_GROUP_SUCCESS = 14;
 const char JOIN_GROUP_FAILED = 15;
 
+const char SEND_MESSAGE = 16;
+const char NEW_MESSAGE = 17;
+

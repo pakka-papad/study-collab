@@ -1,3 +1,6 @@
+#ifndef SAFE_QUEUE
+#define SAFE_QUEUE
+
 #include <queue>
 #include <mutex>
 #include <condition_variable>
@@ -27,3 +30,5 @@ class SafeQueue {
     std::mutex mutex_;
     std::condition_variable condition_;
 };
+
+#endif

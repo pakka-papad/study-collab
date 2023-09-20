@@ -123,4 +123,20 @@ class Database {
         mtx.unlock();
         return true;
     }
+
+    std::vector<std::pair<Connection*,std::string>> getGroupMemberConnectionsAndEmails(const std::string groupId){
+        std::vector<std::pair<Connection*,std::string>> res;
+        mtx.lock();
+        if(groups.count(groupId) == 0){
+            mtx.unlock();
+            return res;
+        }
+        for(auto &member: groups[groupId]->members){
+            if(accounts.count(member) != 0 && accounts[member]->activeConn != NULL){
+                res.push_back({accounts[member]->activeConn, member});
+            }
+        }
+        mtx.unlock();
+        return res;
+    }
 };

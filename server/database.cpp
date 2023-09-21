@@ -3,14 +3,20 @@
 #include <vector>
 #include <string>
 #include <regex>
+#include <set>
 #include "account.hpp"
 #include "group.hpp"
+#include "server_constants.cpp"
 
 class Database {
     private:
     std::mutex mtx;
     Database(){
-
+        try{
+            std::filesystem::create_directory(serverDirectory + fileStore);
+        } catch(const std::filesystem::filesystem_error &e){
+            
+        }
     }
 
     int groupCounter = -1;
@@ -67,6 +73,11 @@ class Database {
         mtx.lock();
         groupCounter++;
         std::string groupId = std::to_string(groupCounter);
+        try{
+            std::filesystem::create_directory(serverDirectory + fileStore + groupId + "/");
+        } catch(const std::filesystem::filesystem_error &e){
+            return false;
+        }
         Group* grp = new Group();
         grp->groupId = groupId;
         grp->groupName = groupName;
@@ -138,5 +149,34 @@ class Database {
         }
         mtx.unlock();
         return res;
+    }
+
+    bool saveFile(const std::string &groupId, const std::string &fileName, const std::string &chunk, bool lastChunk){
+        mtx.lock();
+        if(groups.count(groupId) == 0){
+            mtx.unlock();
+            return false;
+        }
+        auto file = groups[groupId]->openFiles[fileName];
+        if(file == NULL){
+            std::string path = serverDirectory + fileStore + groupId + "/" + fileName;
+            file = fopen(path.c_str() ,"wb");
+            groups[groupId]->openFiles[fileName] = file;
+        }
+        if(file == NULL) {
+            if(lastChunk){
+                groups[groupId]->openFiles.erase(fileName);
+            }
+            mtx.unlock();
+            return false;
+        }
+        fwrite(chunk.c_str(), 1, chunk.size(), file);
+        if(lastChunk){
+            fclose(file);
+            groups[groupId]->openFiles.erase(fileName);
+            groups[groupId]->sharedFiles.insert(fileName);
+        }
+        mtx.unlock();
+        return true;
     }
 };

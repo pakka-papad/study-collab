@@ -6,10 +6,12 @@
 #include <mutex>
 #include <nlohmann/json.hpp>
 #include <chrono>
+#include <filesystem>
 #include "connection.hpp"
 #include "message.hpp"
 #include "database.cpp"
 #include "../constants.hpp"
+#include "server_constants.cpp"
 
 pthread_mutex_t mtx;
 
@@ -120,6 +122,19 @@ void handleMessage(Connection* conn, const Message &msg, std::string &email){
             }
             break;
         }
+        case SAVE_FILE: {
+            nlohmann::json data = nlohmann::json::parse(msg.message);
+            std::string fileName = data["filename"];
+            std::string groupId = data["group_id"];
+            std::string chunk = data["chunk"];
+            int last = data["last"];
+            bool res = Database::getDatabse()->saveFile(groupId, fileName, chunk, last);
+            if(last){
+                Message reply((res ? SAVE_FILE_SUCCESS : SAVE_FILE_FAILED),"{}");
+                sendMessage(conn, reply, email);
+            }
+            break;
+        }
         default:
             break;
     }
@@ -200,7 +215,15 @@ void* handleConnection(void* arg){
 }
 
 int main(){
-    freopen("logs.txt", "w", stderr);
+    try{
+        std::filesystem::create_directory(serverDirectory);
+    } catch(const std::filesystem::filesystem_error &e){
+        return EXIT_FAILURE;
+    }
+
+    std::string errorLogFile = serverDirectory + ".logs.txt";
+
+    freopen(errorLogFile.c_str(), "w", stderr);
 
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == -1) {

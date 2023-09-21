@@ -10,9 +10,11 @@
 #include <mutex>
 #include <functional>
 #include <atomic>
+#include <filesystem>
 #include "chat.hpp"
 #include "chat_db.cpp"
 #include "safe_queue.cpp"
+#include "progress.cpp"
 
 class Screen {
     public:
@@ -159,6 +161,118 @@ class ChatRoom: public Screen {
     }
 };
 
+class ShareFile: public Screen {
+    public:
+    Screen* display(){
+        auto conn = Connection::getConnection();
+        std::cout << "Fetching groups list..." << std::endl;
+
+        Message req(REQUEST_PARTICIPATING_GROUPS,"{}");
+        conn->sendMessage(&req);
+        auto reply = conn->msgQ.pop();
+        nlohmann::json data = nlohmann::json::parse(reply->message);
+        std::vector<std::string> groups;
+        std::vector<std::string> groupIds;
+        std::string groupName, createdBy, groupId;
+        for(auto &group: data){
+            groupName = group["group_name"];
+            createdBy = group["created_by"];
+            groupId = group["group_id"];
+            groups.push_back(groupName + " (created by: " + createdBy + ")");
+            groupIds.push_back(groupId);
+        }
+
+        int grpPos = showMenu(groups);
+        if(grpPos == -1) return NULL;
+        system("clear");
+        
+        std::string path;
+        while(path == ""){
+            system("clear");
+            std::cout << "Enter file path: ";
+            getline(std::cin, path);    
+        }
+        
+
+        FILE* file = fopen(path.c_str(), "rb");
+        if(file == NULL){
+            std::cout << "Error opening file" << std::endl;
+            sleep(1);
+            return NULL;
+        }
+
+        std::filesystem::path pathObj(path);
+        std::string filename = pathObj.filename().string();
+
+        int64_t totalBytes = 0, bytesRead = 0;
+        if(fseek(file, 0, SEEK_END) != 0){
+            std::cout << "Error occurred. Aborting file transmission." << std::endl;
+            fclose(file);
+            sleep(1);
+            return NULL;
+        }
+
+        totalBytes = ftell(file);
+
+        if(totalBytes == -1){
+            std::cout << "Error occurred. Aborting file transmission." << std::endl;
+            fclose(file);
+            sleep(1);
+            return NULL;
+        }
+
+        if (fseek(file, 0, SEEK_SET) != 0) {
+            std::cout << "Error occurred. Aborting file transmission." << std::endl;
+            fclose(file);
+            sleep(1);
+            return NULL;
+        }
+        
+        char buffer1[2048], buffer2[2048];
+        int bytesRead1 = 0, bytesRead2 = 0;
+
+        bytesRead1 = fread(buffer1, 1, sizeof(buffer1), file);
+        std::string fileChunk;
+
+        while(bytesRead1 > 0){
+            bytesRead2 = (file != NULL ? fread(buffer2, 1, sizeof(buffer2), file) : 0);
+            fileChunk.clear();
+            for(int i = 0; i < bytesRead1; i++){
+                fileChunk.push_back(buffer1[i]);
+            }
+            nlohmann::json data;
+            data["filename"] = filename;
+            data["group_id"] = groupIds[grpPos];
+            data["chunk"] = fileChunk;
+            data["last"] = (bytesRead2 <= 0 ? 1 : 0);
+            Message chunk(SAVE_FILE, data.dump());
+            conn->sendMessage(&chunk);
+
+            bytesRead += bytesRead1;
+            updateProgressBar(bytesRead, totalBytes);
+
+            std::swap(buffer1, buffer2);
+            std::swap(bytesRead1, bytesRead2);
+        }
+
+        if(bytesRead1 == -1){
+            std::cout << "\nError sending file" << std::endl;
+            sleep(1);
+            return NULL;
+        }
+
+        std::cout << "\nFile sent" << std::endl;
+        auto fileShareReply = conn->msgQ.pop();
+        if(fileShareReply->code == SAVE_FILE_SUCCESS){
+            std::cout << "File sent successfully" << std::endl;
+        } else {
+            std::cout << "Error occurred while sending file" << std::endl;
+        }
+        sleep(1);
+        return NULL;
+    }
+};
+
 class TaskChoice: public Screen {
     private:
     std::vector<std::string> options = {
@@ -180,6 +294,9 @@ class TaskChoice: public Screen {
                 break;
             case 2:
                 return new ChatRoom();
+                break;
+            case 3:
+                return new ShareFile();
                 break;
             default:    
                 return NULL;

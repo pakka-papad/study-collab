@@ -22,3 +22,6 @@ const char JOIN_GROUP_FAILED = 15;
 const char SEND_MESSAGE = 16;
 const char NEW_MESSAGE = 17;
 
+const char SAVE_FILE = 18;
+const char SAVE_FILE_SUCCESS = 19;
+const char SAVE_FILE_FAILED = 20;

@@ -3,8 +3,10 @@
 
 #include <string>
 #include <set>
+#include <vector>
 #include <nlohmann/json.hpp>
 #include <filesystem>
+#include <fstream>
 
 
 class Group {
@@ -13,8 +15,8 @@ class Group {
     std::string groupName;
     std::string createdBy;
     std::set<std::string> members;
-    std::map<std::string,FILE*> openFiles;
-    std::set<std::string> sharedFiles;
+    std::map<std::string,std::ofstream*> openFiles;
+    std::vector<std::string> sharedFiles;
 
     nlohmann::json toJson() {
         nlohmann::json res;

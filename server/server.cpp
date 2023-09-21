@@ -7,6 +7,7 @@
 #include <nlohmann/json.hpp>
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include "connection.hpp"
 #include "message.hpp"
 #include "database.cpp"
@@ -133,6 +134,51 @@ void handleMessage(Connection* conn, const Message &msg, std::string &email){
                 Message reply((res ? SAVE_FILE_SUCCESS : SAVE_FILE_FAILED),"{}");
                 sendMessage(conn, reply, email);
             }
+            break;
+        }
+        case REQUEST_FILES_LIST: {
+            nlohmann::json data = nlohmann::json::parse(msg.message);
+            std::string groupId = data["group_id"];
+            auto res = Database::getDatabse()->getAllFiles(groupId);
+            nlohmann::json replyData;
+            for(auto &fileName: res){
+                replyData.push_back(fileName);
+            }
+            Message reply(REPLY_FILES_LIST, replyData.dump());
+            sendMessage(conn, reply, email);
+            break;
+        }
+        case REQUEST_FILE: {
+            nlohmann::json data = nlohmann::json::parse(msg.message);
+            std::string fileName = data["filename"];
+            std::string groupId = data["group_id"];
+            std::string filePath = serverDirectory + fileStore + groupId + "/" + fileName;
+            std::ifstream file(filePath.c_str(), std::ios::binary);
+
+            char buffer1[2048], buffer2[2048];
+            int bytesRead1 = 0, bytesRead2 = 0;
+
+            file.read(buffer1, sizeof(buffer1));
+            bytesRead1 = file.gcount();
+            std::string fileChunk;
+
+            while(bytesRead1 > 0){
+                file.read(buffer2, sizeof(buffer2));
+                bytesRead2 = file.gcount();
+                fileChunk.clear();
+                for(int i = 0; i < bytesRead1; i++){
+                    fileChunk.push_back(buffer1[i]);
+                }
+                nlohmann::json data;
+                data["chunk"] = fileChunk;
+                data["last"] = (bytesRead2 <= 0 ? 1 : 0);
+                Message chunk(SAVE_FILE, data.dump());
+                sendMessage(conn, chunk, email);
+
+                std::swap(buffer1, buffer2);
+                std::swap(bytesRead1, bytesRead2);
+            }
+            file.close();
             break;
         }
         default:

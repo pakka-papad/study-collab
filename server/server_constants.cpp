@@ -3,7 +3,7 @@
 
 #include <string>
 
-std::string serverDirectory = ".study-collab-server/";
-std::string fileStore = "store/";
+const std::string serverDirectory = ".study-collab-server/";
+const std::string fileStore = "store/";
 
 #endif

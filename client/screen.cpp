@@ -11,10 +11,12 @@
 #include <functional>
 #include <atomic>
 #include <filesystem>
+#include <fstream>
 #include "chat.hpp"
 #include "chat_db.cpp"
 #include "safe_queue.cpp"
 #include "progress.cpp"
+#include "client_constants.cpp"
 
 class Screen {
     public:
@@ -63,7 +65,7 @@ class JoinGroup: public Screen {
         auto reply = conn->msgQ.pop();
         nlohmann::json data = nlohmann::json::parse(reply->message);
         std::vector<std::string> groups;
-        std::vector<std::string> groupIds;
+        std::vector<std::string> groupIds, groupNames;
         std::string groupName, createdBy, groupId;
         for(auto &group: data){
             groupName = group["group_name"];
@@ -71,6 +73,7 @@ class JoinGroup: public Screen {
             groupId = group["group_id"];
             groups.push_back(groupName + " (created by: " + createdBy + ")");
             groupIds.push_back(groupId);
+            groupNames.push_back(groupName);
         }
 
         bool again = true;
@@ -85,6 +88,12 @@ class JoinGroup: public Screen {
             auto joinRep = conn->msgQ.pop();
             if(joinRep->code == JOIN_GROUP_SUCCESS){
                 std::cout << "Group joined successfully" << std::endl;
+                try{
+                    std::string dir = downloadsDir + groupIds[grpPos] + "-" + groupNames[grpPos];
+                    std::filesystem::create_directory(dir);
+                } catch(const std::filesystem::filesystem_error &e){
+
+                }
                 sleep(3);
                 again = false;
             } else {
@@ -96,6 +105,7 @@ class JoinGroup: public Screen {
                 }
             }
         }
+        
         return NULL;
     }
 };
@@ -194,8 +204,8 @@ class ShareFile: public Screen {
         }
         
 
-        FILE* file = fopen(path.c_str(), "rb");
-        if(file == NULL){
+        std::ifstream file(path.c_str(), std::ios::binary);
+        if(file.is_open() == false){
             std::cout << "Error opening file" << std::endl;
             sleep(1);
             return NULL;
@@ -204,38 +214,27 @@ class ShareFile: public Screen {
         std::filesystem::path pathObj(path);
         std::string filename = pathObj.filename().string();
 
-        int64_t totalBytes = 0, bytesRead = 0;
-        if(fseek(file, 0, SEEK_END) != 0){
-            std::cout << "Error occurred. Aborting file transmission." << std::endl;
-            fclose(file);
-            sleep(1);
-            return NULL;
-        }
+        std::streampos begin = file.tellg();
+        file.seekg(0, std::ios::end);
+        std::streampos end = file.tellg();
 
-        totalBytes = ftell(file);
+        int64_t totalBytes = end - begin, bytesRead = 0;
 
-        if(totalBytes == -1){
-            std::cout << "Error occurred. Aborting file transmission." << std::endl;
-            fclose(file);
-            sleep(1);
-            return NULL;
-        }
+        file.seekg(0, std::ios::beg);
 
-        if (fseek(file, 0, SEEK_SET) != 0) {
-            std::cout << "Error occurred. Aborting file transmission." << std::endl;
-            fclose(file);
-            sleep(1);
-            return NULL;
-        }
+        std::cout << "Starting transmission..." << std::endl;
+        sleep(2);
         
         char buffer1[2048], buffer2[2048];
         int bytesRead1 = 0, bytesRead2 = 0;
 
-        bytesRead1 = fread(buffer1, 1, sizeof(buffer1), file);
+        file.read(buffer1, sizeof(buffer1));
+        bytesRead1 = file.gcount();
         std::string fileChunk;
 
         while(bytesRead1 > 0){
-            bytesRead2 = (file != NULL ? fread(buffer2, 1, sizeof(buffer2), file) : 0);
+            file.read(buffer2, sizeof(buffer2));
+            bytesRead2 = file.gcount();
             fileChunk.clear();
             for(int i = 0; i < bytesRead1; i++){
                 fileChunk.push_back(buffer1[i]);
@@ -255,6 +254,8 @@ class ShareFile: public Screen {
             std::swap(bytesRead1, bytesRead2);
         }
 
+        file.close();
+
         if(bytesRead1 == -1){
             std::cout << "\nError sending file" << std::endl;
             sleep(1);
@@ -269,6 +270,80 @@ class ShareFile: public Screen {
             std::cout << "Error occurred while sending file" << std::endl;
         }
         sleep(1);
+        return NULL;
+    }
+};
+
+class DownloadFile: public Screen {
+    public:
+    Screen* display(){
+        auto conn = Connection::getConnection();
+        std::cout << "Fetching groups list..." << std::endl;
+
+        Message grpsReq(REQUEST_PARTICIPATING_GROUPS,"{}");
+        conn->sendMessage(&grpsReq);
+        auto grpsReply = conn->msgQ.pop();
+        nlohmann::json data = nlohmann::json::parse(grpsReply->message);
+        std::vector<std::string> groups;
+        std::vector<std::string> groupIds, groupNames;
+        std::string groupName, createdBy, groupId;
+        for(auto &group: data){
+            groupName = group["group_name"];
+            createdBy = group["created_by"];
+            groupId = group["group_id"];
+            groups.push_back(groupName + " (created by: " + createdBy + ")");
+            groupIds.push_back(groupId);
+            groupNames.push_back(groupName);
+        }
+
+        int grpPos = showMenu(groups);
+        if(grpPos == -1) return NULL;
+        system("clear");
+
+        nlohmann::json filesReqData;
+        filesReqData["group_id"] = groupIds[grpPos];
+        Message filesReq(REQUEST_FILES_LIST,filesReqData.dump());
+        conn->sendMessage(&filesReq);
+        auto filesReply = conn->msgQ.pop();
+        nlohmann::json fileData = nlohmann::json::parse(filesReply->message);
+        std::vector<std::string> files;
+        for(auto &file: fileData){
+            files.push_back(file);
+        }
+
+        int filePos = showMenu(files);
+        if(filePos == -1) return NULL;
+        system("clear");
+
+        nlohmann::json fileReqData;
+        fileReqData["filename"] = files[filePos];
+        fileReqData["group_id"] = groupIds[grpPos];
+        Message fileReq(REQUEST_FILE,fileReqData.dump());
+        conn->sendMessage(&fileReq);
+
+        std::string filePath = downloadsDir + groupIds[grpPos] + "-" + groupNames[grpPos] + "/" + files[filePos];
+        std::ofstream file(filePath.c_str(), std::ios::binary);
+
+        int64_t recvBytes = 0;
+
+        while(true){
+            auto msg = conn->msgQ.pop();
+            if(msg->code != SAVE_FILE) continue;
+            nlohmann::json chunkData = nlohmann::json::parse(msg->message);
+            std::string chunk = chunkData["chunk"];
+            int last = chunkData["last"];
+            recvBytes += chunk.size();
+            file.write(chunk.c_str(), chunk.size());
+            std::cout << "Received: " << recvBytes << " bytes\r";
+            std::cout.flush();
+            if(last){
+                file.close();
+                std::cout << "\nFile saved successfully" << std::endl;
+                sleep(1);
+                break;
+            }
+        }
+
         return NULL;
     }
 };
@@ -297,6 +372,9 @@ class TaskChoice: public Screen {
                 break;
             case 3:
                 return new ShareFile();
+                break;
+            case 4:
+                return new DownloadFile();
                 break;
             default:    
                 return NULL;

@@ -4,7 +4,9 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <filesystem>
 #include "tui_controller.cpp"
+#include "client_constants.cpp"
 
 void* runUiThread(void* args){
     auto controller = TuiController::getTuiController();
@@ -13,8 +15,20 @@ void* runUiThread(void* args){
 }
 
 int main(int argc, char * argv[]){
+
+    std::string pid = std::to_string(getpid());
+    try{
+        std::filesystem::create_directory(rootDir);
+        std::filesystem::create_directory(downloadsDir);
+        std::string errorLogFile = rootDir + ".logs.txt";
+        freopen(errorLogFile.c_str(), "w", stderr);
+    } catch(const std::filesystem::filesystem_error &e){
+        return EXIT_FAILURE;
+    }
+
+    std::string ipAddr = "127.0.0.1";
     if(argc > 1){
-        freopen(argv[1], "w", stderr);
+        ipAddr = argv[1];
     }
 
     int clientSocket = socket(AF_INET, SOCK_STREAM, 0);

@@ -1,3 +1,10 @@
+#ifndef GLOBAL_CONSTANTS
+#define GLOBAL_CONSTANTS
+
+#include <string>
+
+const std::string base64Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
 const char LOGIN_REQUEST = 1;
 const char LOGIN_SUCCESS = 2;
 const char LOGIN_FAILED = 3;
@@ -25,3 +32,10 @@ const char NEW_MESSAGE = 17;
 const char SAVE_FILE = 18;
 const char SAVE_FILE_SUCCESS = 19;
 const char SAVE_FILE_FAILED = 20;
+
+const char REQUEST_FILES_LIST = 21;
+const char REPLY_FILES_LIST = 22;
+
+const char REQUEST_FILE = 23;
+
+#endif

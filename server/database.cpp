@@ -160,7 +160,7 @@ class Database {
         auto file = groups[groupId]->openFiles[fileName];
         if(file == NULL){
             std::string path = serverDirectory + fileStore + groupId + "/" + fileName;
-            file = fopen(path.c_str() ,"wb");
+            file = new std::ofstream(path.c_str(), std::ios::binary);
             groups[groupId]->openFiles[fileName] = file;
         }
         if(file == NULL) {
@@ -170,13 +170,26 @@ class Database {
             mtx.unlock();
             return false;
         }
-        fwrite(chunk.c_str(), 1, chunk.size(), file);
+        file->write(chunk.c_str(), chunk.size());
         if(lastChunk){
-            fclose(file);
+            file->close();
+            delete file;
             groups[groupId]->openFiles.erase(fileName);
-            groups[groupId]->sharedFiles.insert(fileName);
+            groups[groupId]->sharedFiles.push_back(fileName);
         }
         mtx.unlock();
         return true;
+    }
+
+    std::vector<std::string> getAllFiles(const std::string groupId){
+        std::vector<std::string> res;
+        mtx.lock();
+        if(groups.count(groupId) == 0){
+            mtx.unlock();
+            return res;
+        }
+        res = groups[groupId]->sharedFiles;
+        mtx.unlock();
+        return res;
     }
 };

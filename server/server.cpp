@@ -190,6 +190,7 @@ void handleMessage(Connection* conn, const Message &msg, std::string &email){
         }
         case LOGOUT: {
             Database::getDatabse()->logoutUser(email);
+            close(conn->clientSocket);
             pthread_exit(NULL);
             break;
         }

@@ -3,7 +3,7 @@
 
 #include <string>
 
-const std::string rootDir = ".study-collab-client/";
+const std::string rootDir = "study-collab-client/";
 const std::string downloadsDir = rootDir + "downloads/";
 
 #endif

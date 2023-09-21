@@ -62,9 +62,16 @@ void handleMessage(Connection* conn, const Message &msg, std::string &email){
         case CREATE_GROUP_REQUEST: {
             nlohmann::json data = nlohmann::json::parse(msg.message);
             std::string groupName = data["group_name"];
-            bool success = Database::getDatabse()->createGroup(email, groupName);
-            Message replyMsg((success ? CREATE_GROUP_SUCCESS : CREATE_GROUP_FAILED), "{}");
-            sendMessage(conn, replyMsg, email);
+            auto groupId = Database::getDatabse()->createGroup(email, groupName);
+            if(groupId == ""){
+                Message replyMsg(CREATE_GROUP_FAILED, "{}");
+                sendMessage(conn, replyMsg, email);
+            } else {
+                nlohmann::json reply;
+                reply["group_id"] = groupId;
+                Message replyMsg(CREATE_GROUP_SUCCESS, reply.dump());
+                sendMessage(conn, replyMsg, email);
+            }
             break;
         }
         case REQUEST_ALL_GROUPS: {
@@ -179,6 +186,11 @@ void handleMessage(Connection* conn, const Message &msg, std::string &email){
                 std::swap(bytesRead1, bytesRead2);
             }
             file.close();
+            break;
+        }
+        case LOGOUT: {
+            Database::getDatabse()->logoutUser(email);
+            pthread_exit(NULL);
             break;
         }
         default:

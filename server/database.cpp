@@ -68,15 +68,15 @@ class Database {
         mtx.unlock();
     }
 
-    bool createGroup(const std::string &email, const std::string &groupName){
-        if(email.empty()) return false;
+    std::string createGroup(const std::string &email, const std::string &groupName){
+        if(email.empty()) return "";
         mtx.lock();
         groupCounter++;
         std::string groupId = std::to_string(groupCounter);
         try{
             std::filesystem::create_directory(serverDirectory + fileStore + groupId + "/");
         } catch(const std::filesystem::filesystem_error &e){
-            return false;
+            return "";
         }
         Group* grp = new Group();
         grp->groupId = groupId;
@@ -85,7 +85,7 @@ class Database {
         grp->members.insert(email);
         groups[groupId] = grp;
         mtx.unlock();
-        return true;
+        return groupId;
     }
 
     std::vector<Group> fetchParticipatingGroups(const std::string &email){

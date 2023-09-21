@@ -38,4 +38,6 @@ const char REPLY_FILES_LIST = 22;
 
 const char REQUEST_FILE = 23;
 
+const char LOGOUT = 24;
+
 #endif

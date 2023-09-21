@@ -8,9 +8,6 @@ class Connection {
     int socket;
     pthread_t listenerThreadId;
 
-    std::atomic<bool> stopListening;
-
-
     void listenIncomingMessages();
 
     static void* listen(void* args){
@@ -19,9 +16,7 @@ class Connection {
         return NULL;
     }
 
-    Connection(){
-        stopListening.store(false, std::memory_order_relaxed);
-    }
+    Connection(){}
 
     public:
     Connection(const Connection&) = delete;

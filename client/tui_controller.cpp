@@ -16,8 +16,11 @@ class TuiController {
     }
     
     void run(){
+        auto login = new Login();
+        auto _n = login->display();
+        
         std::stack<Screen*> navStack;
-        navStack.push(new Login());
+        navStack.push(_n);
 
         while(!navStack.empty()){
             Screen* current = navStack.top();
@@ -31,5 +34,6 @@ class TuiController {
                 delete current;
             }
         }
+        pthread_exit(NULL);
     }
 };

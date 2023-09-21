@@ -45,7 +45,7 @@ void Connection::listenIncomingMessages(){
     std::string msg;
     int nextByte = 0;
 
-    while(!stopListening.load(std::memory_order_relaxed)){
+    while(true){
         int bytesRead = recv(socket, buffer, BUF_SIZE, 0);
         if (bytesRead == -1) {
             close(socket);
@@ -106,7 +106,8 @@ void Connection::listenIncomingMessages(){
 }
 
 void Connection::terminate(){
-    stopListening.store(true, std::memory_order_relaxed);
-    pthread_join(listenerThreadId, NULL);
+    Message logout(LOGOUT,"{}");
+    sendMessage(&logout);
+    pthread_cancel(listenerThreadId);
     close(socket);
 }

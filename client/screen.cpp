@@ -39,6 +39,13 @@ class CreateGroup: public Screen {
             auto reply = conn->msgQ.pop();
             if(reply->code == CREATE_GROUP_SUCCESS){
                 std::cout << "Group created successfully" << std::endl;
+                std::string groupId = nlohmann::json::parse(reply->message)["group_id"];
+                try{
+                    std::string dir = downloadsDir + groupId + "-" + gropupName;
+                    std::filesystem::create_directory(dir);
+                } catch(const std::filesystem::filesystem_error &e){
+
+                }
                 again = false;
                 sleep(3);
             } else {

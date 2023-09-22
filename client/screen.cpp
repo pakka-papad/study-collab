@@ -17,6 +17,7 @@
 #include "safe_queue.cpp"
 #include "progress.cpp"
 #include "client_constants.cpp"
+#include "../util.hpp"
 
 class Screen {
     public:
@@ -225,45 +226,37 @@ class ShareFile: public Screen {
         file.seekg(0, std::ios::end);
         std::streampos end = file.tellg();
 
-        int64_t totalBytes = end - begin, bytesRead = 0;
+        int64_t totalBytes = end - begin, totalBytesRead = 0;
 
         file.seekg(0, std::ios::beg);
-
-        std::cout << "Starting transmission..." << std::endl;
-        sleep(2);
         
-        char buffer1[2048], buffer2[2048];
-        int bytesRead1 = 0, bytesRead2 = 0;
+        char buffer[2046];
+        int bytesRead = 0;
 
-        file.read(buffer1, sizeof(buffer1));
-        bytesRead1 = file.gcount();
+        nlohmann::json chunkData;
+        chunkData["filename"] = filename;
+        chunkData["group_id"] = groupIds[grpPos];
+
+        file.read(buffer, sizeof(buffer));
+        bytesRead = file.gcount();
         std::string fileChunk;
 
-        while(bytesRead1 > 0){
-            file.read(buffer2, sizeof(buffer2));
-            bytesRead2 = file.gcount();
-            fileChunk.clear();
-            for(int i = 0; i < bytesRead1; i++){
-                fileChunk.push_back(buffer1[i]);
-            }
-            nlohmann::json data;
-            data["filename"] = filename;
-            data["group_id"] = groupIds[grpPos];
-            data["chunk"] = fileChunk;
-            data["last"] = (bytesRead2 <= 0 ? 1 : 0);
-            Message chunk(SAVE_FILE, data.dump());
+        while(bytesRead > 0){
+            chunkData["chunk"] = ByteArrayToBase64(buffer, bytesRead);
+            chunkData["last"] = (file.eof() ? 1 : 0);
+            Message chunk(SAVE_FILE, chunkData.dump());
             conn->sendMessage(&chunk);
 
-            bytesRead += bytesRead1;
-            updateProgressBar(bytesRead, totalBytes);
+            totalBytesRead += bytesRead;
+            updateProgressBar(totalBytesRead, totalBytes);
 
-            std::swap(buffer1, buffer2);
-            std::swap(bytesRead1, bytesRead2);
+            file.read(buffer, sizeof(buffer));
+            bytesRead = file.gcount();
         }
 
         file.close();
 
-        if(bytesRead1 == -1){
+        if(bytesRead == -1){
             std::cout << "\nError sending file" << std::endl;
             sleep(1);
             return NULL;
@@ -340,7 +333,8 @@ class DownloadFile: public Screen {
             std::string chunk = chunkData["chunk"];
             int last = chunkData["last"];
             recvBytes += chunk.size();
-            file.write(chunk.c_str(), chunk.size());
+            auto bytes = Base64ToByteArray(chunk);
+            file.write(bytes.c_str(), bytes.size());
             std::cout << "Received: " << recvBytes << " bytes\r";
             std::cout.flush();
             if(last){

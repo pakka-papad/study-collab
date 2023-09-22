@@ -13,6 +13,7 @@
 #include "database.cpp"
 #include "../constants.hpp"
 #include "server_constants.cpp"
+#include "../util.hpp"
 
 pthread_mutex_t mtx;
 
@@ -136,7 +137,7 @@ void handleMessage(Connection* conn, const Message &msg, std::string &email){
             std::string groupId = data["group_id"];
             std::string chunk = data["chunk"];
             int last = data["last"];
-            bool res = Database::getDatabse()->saveFile(groupId, fileName, chunk, last);
+            bool res = Database::getDatabse()->saveFile(groupId, fileName, Base64ToByteArray(chunk), last);
             if(last){
                 Message reply((res ? SAVE_FILE_SUCCESS : SAVE_FILE_FAILED),"{}");
                 sendMessage(conn, reply, email);
@@ -162,28 +163,21 @@ void handleMessage(Connection* conn, const Message &msg, std::string &email){
             std::string filePath = serverDirectory + fileStore + groupId + "/" + fileName;
             std::ifstream file(filePath.c_str(), std::ios::binary);
 
-            char buffer1[2048], buffer2[2048];
-            int bytesRead1 = 0, bytesRead2 = 0;
+            char buffer[2046];
+            int bytesRead = 0;
 
-            file.read(buffer1, sizeof(buffer1));
-            bytesRead1 = file.gcount();
+            file.read(buffer, sizeof(buffer));
+            bytesRead = file.gcount();
             std::string fileChunk;
 
-            while(bytesRead1 > 0){
-                file.read(buffer2, sizeof(buffer2));
-                bytesRead2 = file.gcount();
-                fileChunk.clear();
-                for(int i = 0; i < bytesRead1; i++){
-                    fileChunk.push_back(buffer1[i]);
-                }
+            while(bytesRead > 0){
                 nlohmann::json data;
-                data["chunk"] = fileChunk;
-                data["last"] = (bytesRead2 <= 0 ? 1 : 0);
+                data["chunk"] = ByteArrayToBase64(buffer, bytesRead);
+                data["last"] = (file.eof() ? 1 : 0);
                 Message chunk(SAVE_FILE, data.dump());
                 sendMessage(conn, chunk, email);
-
-                std::swap(buffer1, buffer2);
-                std::swap(bytesRead1, bytesRead2);
+                file.read(buffer, sizeof(buffer));
+                bytesRead = file.gcount();
             }
             file.close();
             break;

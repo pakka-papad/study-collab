@@ -1,5 +1,5 @@
 # Study Collab
-A simple project to aimed to build a client-server application on top of TCP sockets.  
+A simple project aimed to build a client-server application on top of TCP sockets.  
 The users can:
 1. Create groups
 2. Join groups

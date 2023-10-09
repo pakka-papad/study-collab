@@ -10,23 +10,23 @@ The users can:
 ## Screenshots
 <table>
   <tr>
-    <td> <img src="https://github.com/pakka-papad/study-collab/assets/76241334/0f69bd97-884a-47dd-9cf4-f54102675c5e"/> </td>
-    <td> <img src="https://github.com/pakka-papad/study-collab/assets/76241334/05117fea-2d00-4e69-9ab2-bba03c2068f0" /> </td>
+    <td> <img src="https://github.com/pakka-papad/study-collab/assets/76241334/fb2796aa-6fac-426e-ba94-7e6511f3c254"/> </td>
+    <td> <img src="https://github.com/pakka-papad/study-collab/assets/76241334/1229b760-ac49-4d83-a70a-6b305d517ba8" /> </td>
   </tr>
   <tr>
     <td> Task chooser interface </td>
     <td> Join group interface </td>
   </tr>
   <tr>
-    <td> <img src="https://github.com/pakka-papad/study-collab/assets/76241334/9cec586a-eeb9-423e-8e84-49a3d31eb9d9"/> </td>
-    <td> <img src="https://github.com/pakka-papad/study-collab/assets/76241334/938b9c39-416e-44ce-b29f-952443213bed" /> </td>
+    <td> <img src="https://github.com/pakka-papad/study-collab/assets/76241334/41119679-9e1f-4444-b6dc-aabcb5c048de"/> </td>
+    <td> <img src="https://github.com/pakka-papad/study-collab/assets/76241334/38b61ade-d890-4ec5-8d55-d654ea35eebf" /> </td>
   </tr>
   <tr>
     <td> Chat interface </td>
     <td> File upload interface </td>
   </tr>
   <tr> 
-    <td> <img src="https://github.com/pakka-papad/study-collab/assets/76241334/d7a9b04b-2aa7-489d-8392-0f8aee1177bd" /> </td>
+    <td> <img src="https://github.com/pakka-papad/study-collab/assets/76241334/d45a1d51-bc52-4eb9-a1ff-fc7c603a5b5b" /> </td>
   </tr>
   <tr>
     <td> File download interface </td>
@@ -55,7 +55,7 @@ This will check for all the dependencies and generate the client and server bina
 ## Message passing overview
 The client and server communicate via simple message passing through TCP. The messages are considered to be a stream of bytes. A sample message structure is as follows:
 
-![Untitled-2023-09-30-2122](https://github.com/pakka-papad/study-collab/assets/76241334/174a9651-9079-4ba0-93df-e75542dee574)
+![message_format](https://github.com/pakka-papad/study-collab/assets/76241334/761aa834-b156-4dc0-882c-80cb05aedc4b)
 
 A message consists of three parts:
 1. Code: Predefined 1 byte mesaage codes used by both client and server. [See defined codes](https://github.com/pakka-papad/study-collab/blob/main/constants.hpp)
